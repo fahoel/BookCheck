@@ -184,7 +184,7 @@ class ModuleCliTests(unittest.TestCase):
 
     def test_database_module_lists_books_without_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            library_file = Path(tmpdir, "library.json")
+            library_file = Path(tmpdir) / "library.json"
             library_file.write_text(
                 '[{"title": "Matilda", "isbn": "9780140328721"}]', encoding="utf-8"
             )
