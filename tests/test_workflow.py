@@ -1,6 +1,7 @@
 import io
 import os
 import runpy
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -128,14 +129,46 @@ class ApiClientTests(unittest.TestCase):
         self.assertIn("Network error:", output.getvalue())
 
 
-class ScannerTests(unittest.TestCase):
+class ScannerCv2Tests(unittest.TestCase):
+    """Tests for the cv2 (desktop) backend."""
+
+    def _cv2_patches(self, cap, detector):
+        """Return a context manager that injects a mock cv2 into scanner."""
+        import contextlib
+
+        mock_cv2 = MagicMock()
+        mock_cv2.VideoCapture.return_value = cap
+        mock_cv2.barcode.BarcodeDetector.return_value = detector
+        mock_cv2.waitKey.return_value = -1
+
+        @contextlib.contextmanager
+        def _ctx():
+            original_cv2 = getattr(scanner, "cv2", None)
+            original_flag = scanner._CV2_AVAILABLE
+            scanner.cv2 = mock_cv2
+            scanner._CV2_AVAILABLE = True
+            try:
+                yield mock_cv2
+            finally:
+                if original_cv2 is None:
+                    try:
+                        del scanner.cv2
+                    except AttributeError:
+                        pass
+                else:
+                    scanner.cv2 = original_cv2
+                scanner._CV2_AVAILABLE = original_flag
+
+        return _ctx()
+
     def test_scan_isbn_handles_camera_unavailable(self):
         cap = MagicMock()
         cap.isOpened.return_value = False
+        detector = MagicMock()
 
-        with patch("scanner.cv2.VideoCapture", return_value=cap), patch(
-            "scanner.cv2.barcode.BarcodeDetector"
-        ), patch("sys.stdout", new_callable=io.StringIO) as output:
+        with self._cv2_patches(cap, detector), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as output:
             isbn = scanner.scan_isbn()
 
         self.assertIsNone(isbn)
@@ -149,11 +182,7 @@ class ScannerTests(unittest.TestCase):
         detector = MagicMock()
         detector.detectAndDecodeMulti.return_value = (True, ["9780140328721"], None, None)
 
-        with patch("scanner.cv2.VideoCapture", return_value=cap), patch(
-            "scanner.cv2.barcode.BarcodeDetector", return_value=detector
-        ), patch("scanner.cv2.imshow"), patch("scanner.cv2.waitKey", return_value=-1), patch(
-            "scanner.cv2.destroyAllWindows"
-        ), patch(
+        with self._cv2_patches(cap, detector), patch(
             "sys.stdout", new_callable=io.StringIO
         ) as output:
             isbn = scanner.scan_isbn()
@@ -161,6 +190,150 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual("9780140328721", isbn)
         cap.release.assert_called_once()
         self.assertIn("ISBN detected: 9780140328721", output.getvalue())
+
+
+class ScannerTermuxTests(unittest.TestCase):
+    """Tests for the Termux (mobile) backend."""
+
+    def _termux_patches(self, *, run_side_effect=None, barcodes=None):
+        """Return a context-manager stack that mocks the Termux backend."""
+        import contextlib
+
+        mock_result = MagicMock()
+        mock_result.text = "9780140328721"
+        barcodes = [mock_result] if barcodes is None else barcodes
+
+        zxingcpp_mock = MagicMock()
+        zxingcpp_mock.read_barcodes.return_value = barcodes
+
+        pil_image_mock = MagicMock()
+
+        @contextlib.contextmanager
+        def _ctx():
+            with patch("scanner._CV2_AVAILABLE", False), patch(
+                "subprocess.run",
+                side_effect=run_side_effect,
+            ) as run_mock, patch.dict(
+                "sys.modules",
+                {"zxingcpp": zxingcpp_mock, "PIL": MagicMock(), "PIL.Image": pil_image_mock},
+            ), patch(
+                "builtins.open", unittest.mock.mock_open()
+            ), patch(
+                "tempfile.NamedTemporaryFile"
+            ) as ntf_mock, patch(
+                "pathlib.Path.unlink"
+            ):
+                ntf = MagicMock()
+                ntf.name = "/tmp/scan_test.jpg"
+                ntf_mock.return_value.__enter__ = lambda s: ntf
+                ntf_mock.return_value.__exit__ = MagicMock(return_value=False)
+                ntf_mock.return_value = ntf
+                yield run_mock, zxingcpp_mock, pil_image_mock
+
+        return _ctx()
+
+    def test_termux_detects_and_returns_isbn(self):
+        mock_result = MagicMock()
+        mock_result.text = "9780140328721"
+
+        with patch("scanner._CV2_AVAILABLE", False), patch(
+            "subprocess.run"
+        ) as run_mock, patch("scanner.zxingcpp") as zxing_mock, patch(
+            "scanner.Image"
+        ) as img_mock, patch(
+            "tempfile.NamedTemporaryFile"
+        ) as ntf_mock, patch(
+            "pathlib.Path.unlink"
+        ), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as output:
+            ntf = MagicMock()
+            ntf.name = "/tmp/scan_test.jpg"
+            ntf_mock.return_value = ntf
+
+            zxing_mock.read_barcodes.return_value = [mock_result]
+
+            # Reload so the lazy imports inside _scan_isbn_termux pick up the mocks
+            isbn = scanner._scan_isbn_termux()
+
+        run_mock.assert_called_once()
+        self.assertEqual("9780140328721", isbn)
+        self.assertIn("ISBN detected: 9780140328721", output.getvalue())
+
+    def test_termux_returns_none_when_no_barcode_found(self):
+        with patch("scanner._CV2_AVAILABLE", False), patch(
+            "subprocess.run"
+        ), patch("scanner.zxingcpp") as zxing_mock, patch(
+            "scanner.Image"
+        ), patch(
+            "tempfile.NamedTemporaryFile"
+        ) as ntf_mock, patch(
+            "pathlib.Path.unlink"
+        ), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as output:
+            ntf = MagicMock()
+            ntf.name = "/tmp/scan_test.jpg"
+            ntf_mock.return_value = ntf
+
+            zxing_mock.read_barcodes.return_value = []
+
+            isbn = scanner._scan_isbn_termux()
+
+        self.assertIsNone(isbn)
+        self.assertIn("No barcode found in photo.", output.getvalue())
+
+    def test_termux_handles_camera_failure(self):
+        with patch("scanner._CV2_AVAILABLE", False), patch(
+            "subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "termux-camera-photo"),
+        ), patch("scanner.zxingcpp"), patch(
+            "scanner.Image"
+        ), patch(
+            "tempfile.NamedTemporaryFile"
+        ) as ntf_mock, patch(
+            "pathlib.Path.unlink"
+        ), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as output:
+            ntf = MagicMock()
+            ntf.name = "/tmp/scan_test.jpg"
+            ntf_mock.return_value = ntf
+
+            isbn = scanner._scan_isbn_termux()
+
+        self.assertIsNone(isbn)
+        self.assertIn("Error: Camera capture failed:", output.getvalue())
+
+    def test_termux_handles_missing_termux_api(self):
+        with patch("scanner._CV2_AVAILABLE", False), patch(
+            "subprocess.run", side_effect=FileNotFoundError
+        ), patch("scanner.zxingcpp"), patch(
+            "scanner.Image"
+        ), patch(
+            "tempfile.NamedTemporaryFile"
+        ) as ntf_mock, patch(
+            "pathlib.Path.unlink"
+        ), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as output:
+            ntf = MagicMock()
+            ntf.name = "/tmp/scan_test.jpg"
+            ntf_mock.return_value = ntf
+
+            isbn = scanner._scan_isbn_termux()
+
+        self.assertIsNone(isbn)
+        self.assertIn("termux-camera-photo not found", output.getvalue())
+
+    def test_scan_isbn_dispatches_to_termux_when_cv2_unavailable(self):
+        with patch("scanner._CV2_AVAILABLE", False), patch(
+            "scanner._scan_isbn_termux", return_value="9780140328721"
+        ) as termux_fn:
+            isbn = scanner.scan_isbn()
+
+        termux_fn.assert_called_once()
+        self.assertEqual("9780140328721", isbn)
 
 
 class ModuleCliTests(unittest.TestCase):

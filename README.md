@@ -29,8 +29,9 @@ Camera → scanner.py  →  isbn string
 ## Requirements
 
 - Python 3.10+
-- A working camera (built-in or USB webcam)
-- OpenCV 4.5.1+ (for the built-in barcode detector)
+- A working camera (built-in or USB webcam on desktop; device camera via Termux:API on Android)
+- **Desktop**: `opencv-python` 4.5.1+ (optional – enables the live-camera window)
+- **Mobile (Termux)**: `zxingcpp` and `Pillow` (installed automatically from `requirements.txt`); the [Termux:API](https://wiki.termux.com/wiki/Termux:API) app and `pkg install termux-api` for camera access
 
 ---
 
@@ -47,6 +48,18 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
+
+# Desktop only – adds the live-camera window (not available on ARM/mobile):
+pip install opencv-python
+```
+
+### Termux (Android) setup
+
+```bash
+# Inside Termux:
+pkg install python termux-api
+pip install -r requirements.txt
+# Also install the "Termux:API" companion app from F-Droid / Google Play.
 ```
 
 ---
