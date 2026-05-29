@@ -195,43 +195,6 @@ class ScannerCv2Tests(unittest.TestCase):
 class ScannerTermuxTests(unittest.TestCase):
     """Tests for the Termux (mobile) backend."""
 
-    def _termux_patches(self, *, run_side_effect=None, barcodes=None):
-        """Return a context-manager stack that mocks the Termux backend."""
-        import contextlib
-
-        mock_result = MagicMock()
-        mock_result.text = "9780140328721"
-        barcodes = [mock_result] if barcodes is None else barcodes
-
-        zxingcpp_mock = MagicMock()
-        zxingcpp_mock.read_barcodes.return_value = barcodes
-
-        pil_image_mock = MagicMock()
-
-        @contextlib.contextmanager
-        def _ctx():
-            with patch("scanner._CV2_AVAILABLE", False), patch(
-                "subprocess.run",
-                side_effect=run_side_effect,
-            ) as run_mock, patch.dict(
-                "sys.modules",
-                {"zxingcpp": zxingcpp_mock, "PIL": MagicMock(), "PIL.Image": pil_image_mock},
-            ), patch(
-                "builtins.open", unittest.mock.mock_open()
-            ), patch(
-                "tempfile.NamedTemporaryFile"
-            ) as ntf_mock, patch(
-                "pathlib.Path.unlink"
-            ):
-                ntf = MagicMock()
-                ntf.name = "/tmp/scan_test.jpg"
-                ntf_mock.return_value.__enter__ = lambda s: ntf
-                ntf_mock.return_value.__exit__ = MagicMock(return_value=False)
-                ntf_mock.return_value = ntf
-                yield run_mock, zxingcpp_mock, pil_image_mock
-
-        return _ctx()
-
     def test_termux_detects_and_returns_isbn(self):
         mock_result = MagicMock()
         mock_result.text = "9780140328721"

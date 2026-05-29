@@ -71,9 +71,13 @@ def _scan_isbn_cv2() -> str | None:
 
 def _scan_isbn_termux() -> str | None:
     """Still-photo scan using termux-camera-photo + zxingcpp (mobile)."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    photo_path = Path(tmp.name)
-    tmp.close()
+    try:
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        photo_path = Path(tmp.name)
+        tmp.close()
+    except OSError as exc:
+        print(f"Error: Could not create temporary file: {exc}")
+        return None
 
     try:
         print("Taking photo with front camera… (Ctrl-C to cancel)")
@@ -83,8 +87,8 @@ def _scan_isbn_termux() -> str | None:
             capture_output=True,
         )
 
-        img = Image.open(photo_path)
-        results = zxingcpp.read_barcodes(img)
+        with Image.open(photo_path) as img:
+            results = zxingcpp.read_barcodes(img)
         if results:
             isbn = results[0].text
             print(f"ISBN detected: {isbn}")
