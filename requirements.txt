@@ -1,5 +1,5 @@
 requests>=2.31.0,<3.0.0
-zxingcpp>=2.0
+zxing-cpp>=2.0
 Pillow>=9.0
 # opencv-python is optional: install it on desktop for the live-camera window.
 # It is not available on ARM/mobile (Termux).  When absent the app falls back

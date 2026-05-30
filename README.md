@@ -31,7 +31,7 @@ Camera → scanner.py  →  isbn string
 - Python 3.10+
 - A working camera (built-in or USB webcam on desktop; device camera via Termux:API on Android)
 - **Desktop**: `opencv-python` 4.5.1+ (optional – enables the live-camera window)
-- **Mobile (Termux)**: `zxingcpp` and `Pillow` (installed automatically from `requirements.txt`); the [Termux:API](https://wiki.termux.com/wiki/Termux:API) app and `pkg install termux-api` for camera access
+- **Mobile (Termux)**: `zxing-cpp` (imported as `zxingcpp`) and `Pillow` (installed automatically from `requirements.txt`); the [Termux:API](https://wiki.termux.com/wiki/Termux:API) app and `pkg install termux-api` for camera access
 
 ---
 
