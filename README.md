@@ -49,7 +49,7 @@ uv sync
 uv run python main.py
 
 # 4. Optional desktop dependency for live-camera window
-uv add --optional desktop opencv-python
+uv sync --extra desktop
 ```
 
 ### pip (alternative)
