@@ -1,0 +1,16 @@
+[project]
+name = "bookcheck"
+version = "0.1.0"
+description = "Scan ISBN barcodes, fetch metadata from Open Library, and save to library.json."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0,<3.0.0",
+    "zxing-cpp>=2.0",
+    "pillow>=9.0",
+]
+
+[project.optional-dependencies]
+desktop = [
+    "opencv-python>=4.5.1",
+]
