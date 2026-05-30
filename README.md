@@ -42,11 +42,24 @@ Camera → scanner.py  →  isbn string
 git clone https://github.com/fahoel/BookCheck.git
 cd BookCheck
 
-# 2. (Recommended) Create a virtual environment
+# 2. Install dependencies with uv (recommended)
+uv sync
+
+# 3. Run with uv
+uv run python main.py
+
+# 4. Optional desktop dependency for live-camera window
+uv add --optional desktop opencv-python
+```
+
+### pip (alternative)
+
+```bash
+# 1. (Recommended) Create a virtual environment
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# 3. Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
 # Desktop only – adds the live-camera window (not available on ARM/mobile):
@@ -67,7 +80,9 @@ pip install -r requirements.txt
 ## Running the app
 
 ```bash
-python main.py
+uv run python main.py
+# or, if using pip/venv:
+# python main.py
 ```
 
 1. A camera window opens – point it at the ISBN barcode on the back of a book.
@@ -80,13 +95,13 @@ python main.py
 
 ```bash
 # Test the API client directly (default ISBN used if none provided)
-python api_client.py [ISBN]
+uv run python api_client.py [ISBN]
 
 # List all books already saved
-python database.py
+uv run python database.py
 
 # Scan a barcode without saving
-python scanner.py
+uv run python scanner.py
 ```
 
 ---
@@ -124,7 +139,7 @@ Each entry looks like this:
 ### Automated smoke checks
 
 ```bash
-python -m unittest discover -s tests -q
+uv run python -m unittest discover -s tests -q
 ```
 
 These tests cover the core workflow (scan → fetch → save), duplicate handling, API/network failure handling, camera-unavailable behavior, and module-level CLI execution paths.
